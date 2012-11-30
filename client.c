@@ -8,20 +8,22 @@
 
 int main()
 {
-    int semid;
-    int shmid;
-    key_t semkey;
-    key_t shmkey;
-    semkey=ftok("server.c",0);
-    shmkey=ftok("client.c",0);
-
     struct People {
         char name[10];
         int age;
     };
 
-    /*读取共享内存和信号量的IPC*/
-    semid=semget(semkey,0,0666);
+    int semid;
+    int shmid;
+    // "key_t" is "int"
+    key_t semkey;
+    key_t shmkey;
+    // below 2 keys can be exchanged
+    shmkey=ftok("server.c",0);
+    semkey=ftok("client.c",0);
+
+    /*读取共享内存和信号量的IPC, 0666: rw-rw-rw, by Tom Xue*/
+    semid=semget(semkey,0,0666);  // server runs first, so set 0
     if(semid==-1)
         printf("creat sem is fail/n");
     shmid=shmget(shmkey,0,0666);
@@ -30,8 +32,9 @@ int main()
 
     /*将共享内存映射到当前进程的地址中，之后直接对进程中的地址addr操作就是对共享内存操作*/
     struct People * addr;
-    addr=(struct People*)shmat(shmid,0,0);
-    if(addr==(struct People*)-1)
+    // SHM_R|SHM_W
+    addr=(struct People*)shmat(shmid,0,0600);
+    if(addr==-1)
         printf("shm shmat is fail/n");
 
     /*信号量的P操作*/
@@ -62,7 +65,8 @@ int main()
     if(shmdt(addr)==-1)
         printf("shmdt is fail/n");
 
-    /*IPC必须显示删除。否则会一直留存在系统中*/
+    /*IPC必须显示删除。否则会一直留存在系统中. 
+     * client runs later, so it makes gc, by Tom*/
     if(semctl(semid,0,IPC_RMID,0)==-1)
         printf("semctl delete error/n");
 
